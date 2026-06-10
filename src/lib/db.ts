@@ -86,6 +86,7 @@ function initSchema(db: Database.Database) {
   `)
 
   seedCategories(db)
+  migrateCategories(db)
 }
 
 function seedCategories(db: Database.Database) {
@@ -93,20 +94,33 @@ function seedCategories(db: Database.Database) {
   if (existing.c > 0) return
 
   const categories = [
+    // Food & Dining
     { name: 'מזון וצריכה', is_fixed: 0, color: '#22c55e' },
     { name: 'מסעדות, קפה וברים', is_fixed: 0, color: '#f97316' },
+    // Shopping
     { name: 'אופנה', is_fixed: 0, color: '#ec4899' },
     { name: 'חשמל ומחשבים', is_fixed: 0, color: '#6366f1' },
-    { name: 'פנאי, בידור וספורט', is_fixed: 0, color: '#8b5cf6' },
+    { name: 'ספרים ומשחקים', is_fixed: 0, color: '#a78bfa' },
+    { name: 'בית וגינה', is_fixed: 0, color: '#84cc16' },
+    { name: 'קניות אונליין', is_fixed: 0, color: '#06b6d4' },
+    // Health & Wellness
+    { name: 'בריאות', is_fixed: 0, color: '#10b981' },
+    { name: 'פסיכולוג וטיפול', is_fixed: 0, color: '#34d399' },
+    { name: 'ספא, טיפוח ומספרה', is_fixed: 0, color: '#f472b6' },
+    // Fixed expenses
     { name: 'שירותי תקשורת', is_fixed: 1, color: '#0ea5e9' },
     { name: 'ביטוח', is_fixed: 1, color: '#64748b' },
     { name: 'דלק, חשמל וגז', is_fixed: 0, color: '#eab308' },
     { name: 'עירייה וממשלה', is_fixed: 1, color: '#94a3b8' },
-    { name: 'העברת כספים', is_fixed: 0, color: '#71717a' },
-    { name: 'בריאות', is_fixed: 0, color: '#10b981' },
     { name: 'דיור', is_fixed: 1, color: '#f59e0b' },
     { name: 'רכב', is_fixed: 1, color: '#3b82f6' },
     { name: 'חינוך', is_fixed: 1, color: '#a855f7' },
+    { name: 'מעון וגן ילדים', is_fixed: 1, color: '#c084fc' },
+    // Leisure
+    { name: 'פנאי, בידור וספורט', is_fixed: 0, color: '#8b5cf6' },
+    { name: 'נסיעות וחופשות', is_fixed: 0, color: '#38bdf8' },
+    // Other
+    { name: 'העברת כספים', is_fixed: 0, color: '#71717a' },
     { name: 'שונות', is_fixed: 0, color: '#9ca3af' },
   ]
 
@@ -114,6 +128,25 @@ function seedCategories(db: Database.Database) {
     'INSERT OR IGNORE INTO categories (name, is_fixed, color) VALUES (?, ?, ?)'
   )
   for (const cat of categories) {
+    insert.run(cat.name, cat.is_fixed, cat.color)
+  }
+}
+
+// Add new categories to existing databases that were seeded before
+function migrateCategories(db: Database.Database) {
+  const newCats = [
+    { name: 'פסיכולוג וטיפול', is_fixed: 0, color: '#34d399' },
+    { name: 'ספא, טיפוח ומספרה', is_fixed: 0, color: '#f472b6' },
+    { name: 'ספרים ומשחקים', is_fixed: 0, color: '#a78bfa' },
+    { name: 'בית וגינה', is_fixed: 0, color: '#84cc16' },
+    { name: 'קניות אונליין', is_fixed: 0, color: '#06b6d4' },
+    { name: 'נסיעות וחופשות', is_fixed: 0, color: '#38bdf8' },
+    { name: 'מעון וגן ילדים', is_fixed: 1, color: '#c084fc' },
+  ]
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO categories (name, is_fixed, color) VALUES (?, ?, ?)'
+  )
+  for (const cat of newCats) {
     insert.run(cat.name, cat.is_fixed, cat.color)
   }
 }

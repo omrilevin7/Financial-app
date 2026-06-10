@@ -96,11 +96,16 @@ export async function POST(req: NextRequest) {
     for (const tx of transactions) {
       const mapping = mappingMap.get(tx.business_name_normalized)
       const categoryId = mapping?.category_id ?? null
-      const mappingConfidence = mapping?.confidence ?? 'low'
-      // Flag for review: excluded never needs review; otherwise flag if low confidence or no category
-      const reviewNeeded = tx.is_excluded
-        ? 0
-        : (tx.review_needed || mappingConfidence === 'low' || (tx.transaction_type === 'expense' && !categoryId)) ? 1 : 0
+      // Only flag for review:
+      // - cheques (always need manual categorization)
+      // - expenses/refunds with NO category at all
+      // Never flag: income, transfers, excluded, anything already categorized
+      const needsReview = !tx.is_excluded
+        && tx.transaction_type !== 'income'
+        && tx.transaction_type !== 'transfer'
+        && tx.transaction_type !== 'credit_card_settlement'
+        && (tx.transaction_type === 'cheque' || !categoryId)
+      const reviewNeeded = needsReview ? 1 : 0
 
       insertTx.run(
         uploadId,

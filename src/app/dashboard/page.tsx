@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { formatCurrency } from '@/lib/utils'
 import {
-  TrendingDown, TrendingUp, Target, Calendar, ChevronDown, ChevronRight,
-  Edit2, Check, X, ArrowUpDown
+  TrendingDown, TrendingUp, Target, ChevronDown, ChevronRight,
+  Edit2, Check, X, ArrowUpDown, Upload
 } from 'lucide-react'
 
 interface DashboardData {
@@ -55,18 +55,10 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-function getAvailableMonths(): string[] {
-  const now = new Date()
-  const months: string[] = []
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-  }
-  return months
-}
-
 export default function DashboardPage() {
-  const [month, setMonth] = useState(getCurrentMonth())
+  const [month, setMonth] = useState('')
+  const [availableMonths, setAvailableMonths] = useState<string[]>([])
+  const [hasData, setHasData] = useState<boolean | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [fixedOpen, setFixedOpen] = useState(true)
@@ -75,7 +67,26 @@ export default function DashboardPage() {
   const [sortBy, setSortBy] = useState<'amount' | 'name' | 'target'>('amount')
   const [categories, setCategories] = useState<{ id: number; name: string; monthly_target: number }[]>([])
 
+  // On mount, load available months and default to the most recent one with data
+  useEffect(() => {
+    fetch('/api/months')
+      .then(r => r.json())
+      .then((months: Array<{ month: string }>) => {
+        if (months.length === 0) {
+          setHasData(false)
+          setLoading(false)
+          return
+        }
+        setHasData(true)
+        const monthStrings = months.map(m => m.month)
+        setAvailableMonths(monthStrings)
+        setMonth(monthStrings[0])  // most recent first
+      })
+      .catch(() => { setHasData(false); setLoading(false) })
+  }, [])
+
   const fetchDashboard = useCallback(() => {
+    if (!month) return
     setLoading(true)
     fetch(`/api/dashboard?month=${month}`)
       .then(r => r.json())
@@ -114,7 +125,22 @@ export default function DashboardPage() {
     )
   }
 
-  if (!data) return <div className="p-6 text-slate-400">No data available. Upload your first file.</div>
+  if (hasData === false) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+          <Upload className="w-7 h-7 text-slate-500" />
+        </div>
+        <h2 className="text-xl font-semibold text-slate-200 mb-2">No data yet</h2>
+        <p className="text-slate-500 mb-6 max-w-sm">Upload your Max credit card or Discount bank export to get started</p>
+        <a href="/upload" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium transition-colors">
+          Upload files
+        </a>
+      </div>
+    )
+  }
+
+  if (!data) return null
 
   const savings = data.totalIncome - data.totalExpenses
   const savingsTarget = data.goals.savings_target
@@ -146,7 +172,7 @@ export default function DashboardPage() {
           onChange={e => setMonth(e.target.value)}
           className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
-          {getAvailableMonths().map(m => (
+          {availableMonths.map(m => (
             <option key={m} value={m}>{getMonthLabel(m)}</option>
           ))}
         </select>
