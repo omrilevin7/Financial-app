@@ -18,6 +18,7 @@ interface DashboardData {
   prevMonthSavings: number
   ytdSavings: number
   reviewCount: number
+  coverage: { hasMax: boolean; hasBank: boolean }
   categories: CategoryRow[]
   fixedExpenses: FixedRow[]
   fixedTotal: number
@@ -188,6 +189,28 @@ export default function DashboardPage() {
             {data.reviewCount} transaction{data.reviewCount > 1 ? 's' : ''} need your review — click to categorize
           </span>
         </a>
+      )}
+
+      {/* Data coverage warnings */}
+      {(!data.coverage.hasMax || !data.coverage.hasBank) && (
+        <div className="flex flex-col gap-2">
+          {!data.coverage.hasMax && (
+            <a href="/upload" className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-slate-500 flex-shrink-0" />
+              <span className="text-slate-400 text-sm">
+                No Max credit card data for {getMonthLabel(month)} — <span className="text-indigo-400">upload a Max export</span>
+              </span>
+            </a>
+          )}
+          {!data.coverage.hasBank && (
+            <a href="/upload" className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-slate-500 flex-shrink-0" />
+              <span className="text-slate-400 text-sm">
+                No bank data for {getMonthLabel(month)} — income will show as ₪0. <span className="text-indigo-400">Upload a bank statement</span>
+              </span>
+            </a>
+          )}
+        </div>
       )}
 
       {/* Current Month Performance */}

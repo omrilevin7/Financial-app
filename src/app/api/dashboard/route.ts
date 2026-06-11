@@ -124,6 +124,17 @@ export async function GET(req: NextRequest) {
 
   const fixedTotal = (fixedRows as Array<{ amount: number }>).reduce((s, r) => s + r.amount, 0)
 
+  // Data coverage: which sources have transactions for this month
+  const coverage = db.prepare(`
+    SELECT source, COUNT(*) as c
+    FROM transactions
+    WHERE substr(transaction_date, 1, 7) = ? AND is_excluded = 0
+    GROUP BY source
+  `).all(month) as Array<{ source: string; c: number }>
+
+  const hasMax = coverage.some(r => r.source === 'max')
+  const hasBank = coverage.some(r => r.source === 'bank')
+
   return NextResponse.json({
     month,
     totalExpenses,
@@ -135,6 +146,7 @@ export async function GET(req: NextRequest) {
     prevMonthSavings: prevSavings,
     ytdSavings,
     reviewCount,
+    coverage: { hasMax, hasBank },
     categories: expenseRows.map(r => ({
       ...r,
       net: r.total_charged - r.total_refunds,

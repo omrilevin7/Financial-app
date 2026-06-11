@@ -1,8 +1,20 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, History, CreditCard, Building2 } from 'lucide-react'
 import Link from 'next/link'
+
+type UploadRecord = {
+  id: number
+  filename: string
+  source_type: 'max' | 'bank'
+  uploaded_at: string
+  row_count: number
+  date_from: string | null
+  date_to: string | null
+  transaction_count: number
+  excluded_count: number
+}
 
 type UploadResult = {
   success: boolean
@@ -21,6 +33,13 @@ export default function UploadPage() {
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<UploadResult[]>([])
+  const [history, setHistory] = useState<UploadRecord[]>([])
+
+  const fetchHistory = useCallback(() => {
+    fetch('/api/uploads').then(r => r.json()).then(setHistory).catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchHistory() }, [fetchHistory])
   const inputRef = useRef<HTMLInputElement>(null)
 
   function addFiles(files: FileList | null) {
@@ -68,6 +87,7 @@ export default function UploadPage() {
     setResults(uploadResults)
     setUploading(false)
     setEntries([])
+    fetchHistory()
   }
 
   const totalReview = results.reduce((s, r) => s + (r.review_needed ?? 0), 0)
@@ -188,6 +208,54 @@ export default function UploadPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Upload history */}
+      {history.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 uppercase tracking-wider">
+            <History className="w-3.5 h-3.5" />
+            Uploaded files
+          </div>
+          <div className="bg-[#161b27] border border-slate-800 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[24px_1fr_110px_90px] gap-0 text-xs text-slate-500 uppercase tracking-wider px-4 py-2.5 border-b border-slate-800">
+              <span />
+              <span>File</span>
+              <span>Date range</span>
+              <span className="text-right">Transactions</span>
+            </div>
+            {history.map(row => {
+              const dateFrom = row.date_from
+                ? new Date(row.date_from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
+                : '—'
+              const dateTo = row.date_to
+                ? new Date(row.date_to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
+                : '—'
+              const uploadedAt = new Date(row.uploaded_at).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric'
+              })
+              const Icon = row.source_type === 'max' ? CreditCard : Building2
+              const iconColor = row.source_type === 'max' ? 'text-indigo-400' : 'text-emerald-400'
+              const active = row.transaction_count - row.excluded_count
+              return (
+                <div key={row.id} className="grid grid-cols-[24px_1fr_110px_90px] gap-0 px-4 py-3 border-b border-slate-800/50 items-center text-sm">
+                  <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+                  <div className="min-w-0">
+                    <p className="text-slate-300 text-xs truncate">{row.source_type === 'max' ? 'Max CC' : 'Bank'}</p>
+                    <p className="text-slate-600 text-xs truncate">Uploaded {uploadedAt}</p>
+                  </div>
+                  <span className="text-slate-400 text-xs">{dateFrom} – {dateTo}</span>
+                  <div className="text-right">
+                    <span className="text-slate-300 text-xs">{active}</span>
+                    {row.excluded_count > 0 && (
+                      <span className="text-slate-600 text-xs"> (+{row.excluded_count} excl.)</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
