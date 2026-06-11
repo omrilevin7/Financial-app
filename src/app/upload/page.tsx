@@ -29,14 +29,28 @@ type FileEntry = {
   sourceType: 'max' | 'bank' | ''
 }
 
+type CoverageMonth = {
+  month: string
+  hasMax: boolean
+  hasBank: boolean
+}
+
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function monthLabel(yyyymm: string) {
+  const [y, m] = yyyymm.split('-')
+  return `${MONTHS_SHORT[Number(m)-1]} ${y.slice(2)}`
+}
+
 export default function UploadPage() {
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<UploadResult[]>([])
   const [history, setHistory] = useState<UploadRecord[]>([])
+  const [coverage, setCoverage] = useState<CoverageMonth[]>([])
 
   const fetchHistory = useCallback(() => {
     fetch('/api/uploads').then(r => r.json()).then(setHistory).catch(() => {})
+    fetch('/api/coverage').then(r => r.json()).then(setCoverage).catch(() => {})
   }, [])
 
   useEffect(() => { fetchHistory() }, [fetchHistory])
@@ -208,6 +222,43 @@ export default function UploadPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Coverage grid */}
+      {coverage.some(c => c.hasMax || c.hasBank) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 uppercase tracking-wider">
+            <CreditCard className="w-3.5 h-3.5" />
+            Data coverage — which months are complete
+          </div>
+          <div className="bg-[#161b27] border border-slate-800 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[80px_1fr_1fr] text-xs text-slate-500 uppercase tracking-wider px-4 py-2 border-b border-slate-800">
+              <span>Month</span>
+              <span className="text-center">Max CC</span>
+              <span className="text-center">Bank</span>
+            </div>
+            {coverage.filter(c => c.hasMax || c.hasBank).map(c => (
+              <div key={c.month} className="grid grid-cols-[80px_1fr_1fr] px-4 py-2 border-b border-slate-800/50 items-center text-sm">
+                <span className="text-slate-400 text-xs">{monthLabel(c.month)}</span>
+                <div className="flex justify-center">
+                  {c.hasMax
+                    ? <span className="text-xs text-emerald-400 font-medium">✓ uploaded</span>
+                    : <span className="text-xs text-red-400 opacity-70">✗ missing</span>
+                  }
+                </div>
+                <div className="flex justify-center">
+                  {c.hasBank
+                    ? <span className="text-xs text-emerald-400 font-medium">✓ uploaded</span>
+                    : <span className="text-xs text-slate-600">—</span>
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600">
+            Missing Max CC months = credit card expenses not counted → income/savings will look higher than reality
+          </p>
         </div>
       )}
 

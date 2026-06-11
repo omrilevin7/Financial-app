@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/utils'
 import {
   TrendingDown, TrendingUp, Target, ChevronDown, ChevronRight,
@@ -57,6 +58,7 @@ function getCurrentMonth() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [month, setMonth] = useState('')
   const [availableMonths, setAvailableMonths] = useState<string[]>([])
   const [hasData, setHasData] = useState<boolean | null>(null)
@@ -222,13 +224,16 @@ export default function DashboardPage() {
           <StatCard
             label="Spent"
             value={formatCurrency(data.totalExpenses)}
-            sub={expensePct !== null ? `${expensePct}% of target` : undefined}
+            sub={expensePct !== null ? `${expensePct}% of target` : 'click to see breakdown'}
             color={expensePct && expensePct > 100 ? 'red' : 'default'}
+            onClick={() => router.push(`/transactions?month=${month}&type=expense`)}
           />
           <StatCard
             label="Income"
             value={formatCurrency(data.totalIncome)}
             color="green"
+            sub="click to see breakdown"
+            onClick={() => router.push(`/transactions?month=${month}&type=income`)}
           />
           <StatCard
             label="Saved"
@@ -260,6 +265,7 @@ export default function DashboardPage() {
             label="YTD savings"
             value={formatCurrency(data.ytdSavings)}
             positive={data.ytdSavings >= 0}
+            warning={!data.coverage.hasMax ? 'Max CC missing for this month' : undefined}
           />
           <HighlightCard
             label="Monthly savings target"
@@ -306,17 +312,23 @@ export default function DashboardPage() {
               const vsTarget = target > 0 ? cat.net - target : null
               const isEditing = editingTarget === catId
 
+              const txUrl = catId
+                ? `/transactions?month=${month}&category=${catId}`
+                : `/transactions?month=${month}&category=uncategorized`
+
               return (
                 <div
                   key={catId ?? 'uncategorized'}
-                  className="grid grid-cols-[1fr_100px_80px_120px_100px] gap-0 px-4 py-3 border-b border-slate-800/50 hover:bg-slate-800/20 items-center text-sm"
+                  className="grid grid-cols-[1fr_100px_80px_120px_100px] gap-0 px-4 py-3 border-b border-slate-800/50 hover:bg-slate-800/20 items-center text-sm cursor-pointer group"
+                  onClick={() => router.push(txUrl)}
+                  title="Click to see transactions"
                 >
                   <div className="flex items-center gap-2.5">
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ background: cat.color ?? '#6366f1' }}
                     />
-                    <span className="text-slate-200 font-medium truncate">
+                    <span className="text-slate-200 font-medium truncate group-hover:text-indigo-300 transition-colors">
                       {cat.category_name ?? 'Uncategorized'}
                     </span>
                     {cat.is_fixed === 1 && (
@@ -417,12 +429,16 @@ export default function DashboardPage() {
   )
 }
 
-function StatCard({ label, value, sub, color = 'default' }: {
+function StatCard({ label, value, sub, color = 'default', onClick }: {
   label: string; value: string; sub?: string; color?: 'default' | 'green' | 'red'
+  onClick?: () => void
 }) {
   const valueColor = color === 'green' ? 'text-emerald-400' : color === 'red' ? 'text-red-400' : 'text-slate-100'
   return (
-    <div className="bg-[#161b27] border border-slate-800 rounded-xl p-4">
+    <div
+      onClick={onClick}
+      className={`bg-[#161b27] border border-slate-800 rounded-xl p-4 ${onClick ? 'cursor-pointer hover:border-slate-600 hover:bg-slate-800/40 transition-colors' : ''}`}
+    >
       <p className="text-xs text-slate-500 mb-1">{label}</p>
       <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
       {sub && <p className="text-xs text-slate-600 mt-1">{sub}</p>}
@@ -430,20 +446,21 @@ function StatCard({ label, value, sub, color = 'default' }: {
   )
 }
 
-function HighlightCard({ label, value, positive, neutral = false }: {
-  label: string; value: string; positive: boolean; neutral?: boolean
+function HighlightCard({ label, value, positive, neutral = false, warning }: {
+  label: string; value: string; positive: boolean; neutral?: boolean; warning?: string
 }) {
   const valueColor = neutral ? 'text-slate-400' : positive ? 'text-emerald-400' : 'text-red-400'
   const Icon = neutral ? Target : positive ? TrendingUp : TrendingDown
   const iconColor = neutral ? 'text-slate-600' : positive ? 'text-emerald-600' : 'text-red-600'
 
   return (
-    <div className="bg-[#161b27] border border-slate-800 rounded-xl p-4">
+    <div className={`bg-[#161b27] border rounded-xl p-4 ${warning ? 'border-amber-800/40' : 'border-slate-800'}`}>
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-slate-500">{label}</p>
         <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
       </div>
       <p className={`text-lg font-bold ${valueColor}`}>{value}</p>
+      {warning && <p className="text-[10px] text-amber-600 mt-1">⚠ {warning}</p>}
     </div>
   )
 }

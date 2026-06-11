@@ -9,10 +9,12 @@ import {
   AlertCircle,
   Settings,
   Wallet,
+  List,
 } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/transactions', label: 'Transactions', icon: List },
   { href: '/upload', label: 'Upload', icon: Upload },
   { href: '/review', label: 'Review', icon: AlertCircle },
   { href: '/settings', label: 'Goals', icon: Settings },
