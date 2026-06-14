@@ -190,6 +190,9 @@ export default function UploadPage() {
                   <>
                     <p className="text-sm text-emerald-400 font-medium">
                       {r.total} transactions imported
+                      {(r as {skipped_duplicates?: number}).skipped_duplicates
+                        ? ` · ${(r as {skipped_duplicates?: number}).skipped_duplicates} duplicates skipped`
+                        : ''}
                     </p>
                     {(r.review_needed ?? 0) > 0 && (
                       <p className="text-xs text-amber-400 mt-0.5">

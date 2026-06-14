@@ -61,19 +61,19 @@ function parseMaxSheet(sheet: XLSX.WorkSheet): ParsedTransaction[] {
 
     if (!businessName || !txDateRaw) continue
 
-    // For installments use billing date, otherwise use transaction date
+    // Always use purchase date (תאריך עסקה) as transaction_date regardless of type.
+    // billing_date is stored separately for dedup and coverage tracking.
     const isInstallment = kind === 'תשלומים'
-    const effectiveDate = isInstallment
-      ? parseIsraeliDate(billingDateRaw)
-      : parseIsraeliDate(txDateRaw)
+    const purchaseDate = parseIsraeliDate(txDateRaw)
+    const billingDate = billingDateRaw ? parseIsraeliDate(billingDateRaw) : purchaseDate
 
     // Credit transactions (קרדיט) are refunds - use negative amount
     const isCredit = kind === 'קרדיט'
     const amountInAgorot = Math.round((isCredit ? -chargeAmount : chargeAmount) * 100)
 
     results.push({
-      transaction_date: effectiveDate,
-      billing_date: billingDateRaw ? parseIsraeliDate(billingDateRaw) : effectiveDate,
+      transaction_date: purchaseDate,
+      billing_date: billingDate,
       business_name: businessName,
       business_name_normalized: normalizeBusinessName(businessName),
       amount: amountInAgorot,

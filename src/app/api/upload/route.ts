@@ -83,23 +83,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Insert transactions
+  // Insert transactions — skip duplicates by (business_name_normalized, amount, billing_date, source)
+  // This allows re-uploading the same file safely, and uploading multiple billing cycles
+  // without double-counting (each installment payment has a unique billing_date)
   const insertTx = db.prepare(`
     INSERT INTO transactions (
       upload_id, transaction_date, billing_date, business_name, business_name_normalized,
       amount, original_amount, original_currency, category_id, transaction_type,
       source, card_last4, notes, max_transaction_kind, is_excluded, review_needed
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    WHERE NOT EXISTS (
+      SELECT 1 FROM transactions
+      WHERE business_name_normalized = ?
+        AND amount = ?
+        AND billing_date = ?
+        AND source = ?
+    )
   `)
 
   const insertMany = db.transaction(() => {
+    let inserted = 0
     for (const tx of transactions) {
       const mapping = mappingMap.get(tx.business_name_normalized)
       const categoryId = mapping?.category_id ?? null
-      // Only flag for review:
-      // - cheques (always need manual categorization)
-      // - expenses/refunds with NO category at all
-      // Never flag: income, transfers, excluded, anything already categorized
       const needsReview = !tx.is_excluded
         && tx.transaction_type !== 'income'
         && tx.transaction_type !== 'transfer'
@@ -107,28 +114,24 @@ export async function POST(req: NextRequest) {
         && (tx.transaction_type === 'cheque' || !categoryId)
       const reviewNeeded = needsReview ? 1 : 0
 
-      insertTx.run(
-        uploadId,
-        tx.transaction_date,
-        tx.billing_date ?? null,
-        tx.business_name,
-        tx.business_name_normalized,
-        tx.amount,
-        tx.original_amount,
-        tx.original_currency,
-        categoryId,
-        tx.transaction_type,
-        tx.source,
-        tx.card_last4 ?? null,
-        tx.notes ?? null,
-        tx.max_transaction_kind ?? null,
-        tx.is_excluded,
-        reviewNeeded ? 1 : 0,
+      const billingDate = tx.billing_date ?? tx.transaction_date
+      const r = insertTx.run(
+        // INSERT values
+        uploadId, tx.transaction_date, billingDate,
+        tx.business_name, tx.business_name_normalized,
+        tx.amount, tx.original_amount, tx.original_currency,
+        categoryId, tx.transaction_type, tx.source,
+        tx.card_last4 ?? null, tx.notes ?? null,
+        tx.max_transaction_kind ?? null, tx.is_excluded, reviewNeeded,
+        // WHERE NOT EXISTS values
+        tx.business_name_normalized, tx.amount, billingDate, tx.source,
       )
+      if (r.changes > 0) inserted++
     }
+    return inserted
   })
 
-  insertMany()
+  const inserted = insertMany()
 
   const reviewCount = (db.prepare(
     'SELECT COUNT(*) as c FROM transactions WHERE upload_id = ? AND review_needed = 1'
@@ -137,7 +140,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     upload_id: uploadId,
-    total: transactions.length,
+    total: inserted,
+    skipped_duplicates: transactions.length - inserted,
     review_needed: reviewCount,
   })
 }
