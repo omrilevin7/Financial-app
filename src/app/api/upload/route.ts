@@ -88,11 +88,11 @@ export async function POST(req: NextRequest) {
   // without double-counting (each installment payment has a unique billing_date)
   const insertTx = db.prepare(`
     INSERT INTO transactions (
-      upload_id, transaction_date, billing_date, business_name, business_name_normalized,
+      upload_id, transaction_date, billing_date, budget_month, business_name, business_name_normalized,
       amount, original_amount, original_currency, category_id, transaction_type,
       source, card_last4, notes, max_transaction_kind, is_excluded, review_needed
     )
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     WHERE NOT EXISTS (
       SELECT 1 FROM transactions
       WHERE business_name_normalized = ?
@@ -115,9 +115,10 @@ export async function POST(req: NextRequest) {
       const reviewNeeded = needsReview ? 1 : 0
 
       const billingDate = tx.billing_date ?? tx.transaction_date
+      const budgetMonth = tx.budget_month ?? tx.transaction_date.substring(0, 7)
       const r = insertTx.run(
         // INSERT values
-        uploadId, tx.transaction_date, billingDate,
+        uploadId, tx.transaction_date, billingDate, budgetMonth,
         tx.business_name, tx.business_name_normalized,
         tx.amount, tx.original_amount, tx.original_currency,
         categoryId, tx.transaction_type, tx.source,

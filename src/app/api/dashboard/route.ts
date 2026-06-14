@@ -7,7 +7,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const month = searchParams.get('month') ?? getCurrentMonth()
 
-  // Current month expenses (non-excluded, non-income)
+  // Expenses for this budget month (non-excluded, non-income).
+  // budget_month already accounts for credit-card billing deferral.
   const expenseRows = db.prepare(`
     SELECT
       t.category_id,
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
       COUNT(*) as tx_count
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE substr(t.transaction_date, 1, 7) = ?
+    WHERE t.budget_month = ?
       AND t.is_excluded = 0
       AND t.transaction_type IN ('expense', 'refund', 'cheque')
     GROUP BY t.category_id
@@ -38,31 +39,32 @@ export async function GET(req: NextRequest) {
 
   const totalExpenses = expenseRows.reduce((s, r) => s + (r.total_charged - r.total_refunds), 0)
 
-  // Income this month
+  // Income this budget month
   const incomeRow = db.prepare(`
     SELECT SUM(amount) as total
     FROM transactions
-    WHERE substr(transaction_date, 1, 7) = ?
+    WHERE budget_month = ?
       AND transaction_type = 'income'
       AND is_excluded = 0
   `).get(month) as { total: number | null }
   const totalIncome = incomeRow.total ?? 0
 
-  // Last transaction date (to show data freshness)
+  // Last transaction date in this budget month (data freshness)
   const lastTxRow = db.prepare(`
     SELECT MAX(transaction_date) as last_date
     FROM transactions
-    WHERE substr(transaction_date, 1, 7) = ? AND is_excluded = 0
+    WHERE budget_month = ? AND is_excluded = 0
   `).get(month) as { last_date: string | null }
   const lastDataDate = lastTxRow.last_date
 
-  // Projection: based on pace through the month
+  // Projection: only meaningful for the current calendar month, based on
+  // how far we are through the month.
   let projectedExpenses = totalExpenses
-  if (lastDataDate) {
-    const daysCovered = new Date(lastDataDate).getDate()
+  if (month === getCurrentMonth()) {
+    const today = new Date().getDate()
     const totalDays = daysInMonth(month)
-    if (daysCovered > 0 && daysCovered < totalDays) {
-      projectedExpenses = Math.round((totalExpenses / daysCovered) * totalDays)
+    if (today > 0 && today < totalDays) {
+      projectedExpenses = Math.round((totalExpenses / today) * totalDays)
     }
   }
 
@@ -71,37 +73,37 @@ export async function GET(req: NextRequest) {
     'SELECT * FROM monthly_goals WHERE month = ?'
   ).get(month) as { expense_target: number; savings_target: number } | undefined
 
-  // Previous month savings
+  // Previous budget month savings
   const prevMonth = getPrevMonth(month)
   const prevExpenses = (db.prepare(`
     SELECT SUM(amount) as total FROM transactions
-    WHERE substr(transaction_date, 1, 7) = ?
+    WHERE budget_month = ?
       AND is_excluded = 0
       AND transaction_type IN ('expense', 'refund', 'cheque')
   `).get(prevMonth) as { total: number | null }).total ?? 0
 
   const prevIncome = (db.prepare(`
     SELECT SUM(amount) as total FROM transactions
-    WHERE substr(transaction_date, 1, 7) = ?
+    WHERE budget_month = ?
       AND transaction_type = 'income' AND is_excluded = 0
   `).get(prevMonth) as { total: number | null }).total ?? 0
 
   const prevSavings = prevIncome - prevExpenses
 
-  // YTD savings (from Jan 1 of current year)
+  // YTD savings: all budget months in the same year up to and including this one
   const year = month.split('-')[0]
   const ytdExpenses = (db.prepare(`
     SELECT SUM(amount) as total FROM transactions
-    WHERE transaction_date >= ? AND transaction_date <= ?
+    WHERE budget_month >= ? AND budget_month <= ?
       AND is_excluded = 0
       AND transaction_type IN ('expense', 'refund', 'cheque')
-  `).get(`${year}-01-01`, `${month}-31`) as { total: number | null }).total ?? 0
+  `).get(`${year}-01`, month) as { total: number | null }).total ?? 0
 
   const ytdIncome = (db.prepare(`
     SELECT SUM(amount) as total FROM transactions
-    WHERE transaction_date >= ? AND transaction_date <= ?
+    WHERE budget_month >= ? AND budget_month <= ?
       AND is_excluded = 0 AND transaction_type = 'income'
-  `).get(`${year}-01-01`, `${month}-31`) as { total: number | null }).total ?? 0
+  `).get(`${year}-01`, month) as { total: number | null }).total ?? 0
 
   const ytdSavings = ytdIncome - ytdExpenses
 
@@ -115,7 +117,7 @@ export async function GET(req: NextRequest) {
     SELECT t.business_name, t.amount, c.name as category_name, t.transaction_date
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE substr(t.transaction_date, 1, 7) = ?
+    WHERE t.budget_month = ?
       AND c.is_fixed = 1
       AND t.is_excluded = 0
       AND t.transaction_type IN ('expense', 'cheque')
@@ -124,11 +126,11 @@ export async function GET(req: NextRequest) {
 
   const fixedTotal = (fixedRows as Array<{ amount: number }>).reduce((s, r) => s + r.amount, 0)
 
-  // Data coverage: which sources have transactions for this month
+  // Data coverage: which sources have transactions for this budget month
   const coverage = db.prepare(`
     SELECT source, COUNT(*) as c
     FROM transactions
-    WHERE substr(transaction_date, 1, 7) = ? AND is_excluded = 0
+    WHERE budget_month = ? AND is_excluded = 0
     GROUP BY source
   `).all(month) as Array<{ source: string; c: number }>
 

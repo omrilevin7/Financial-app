@@ -3,6 +3,7 @@ import { normalizeBusinessName } from '../utils'
 
 export interface ParsedBankTransaction {
   transaction_date: string
+  budget_month: string  // bank is real-time: budget month = transaction month
   business_name: string
   business_name_normalized: string
   amount: number  // in agorot, positive = income, negative = expense
@@ -157,6 +158,7 @@ export function parseBankDiscountFile(buffer: ArrayBuffer): ParsedBankTransactio
 
     results.push({
       transaction_date: txDate,
+      budget_month: txDate.substring(0, 7),  // real-time: no billing deferral
       business_name: desc,
       business_name_normalized: normalizeBusinessName(desc),
       amount: amountInAgorot,

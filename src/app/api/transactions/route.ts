@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const params: (string | number)[] = []
 
   if (month) {
-    query += ` AND substr(t.transaction_date, 1, 7) = ?`
+    query += ` AND t.budget_month = ?`
     params.push(month)
   }
 

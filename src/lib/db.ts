@@ -54,6 +54,7 @@ function initSchema(db: Database.Database) {
       upload_id INTEGER REFERENCES uploads(id),
       transaction_date TEXT NOT NULL,
       billing_date TEXT,
+      budget_month TEXT,
       business_name TEXT NOT NULL,
       business_name_normalized TEXT NOT NULL,
       amount INTEGER NOT NULL,
@@ -83,10 +84,41 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_transactions_normalized ON transactions(business_name_normalized);
     CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
+    CREATE INDEX IF NOT EXISTS idx_transactions_budget_month ON transactions(budget_month);
   `)
 
   seedCategories(db)
   migrateCategories(db)
+  migrateBudgetMonth(db)
+}
+
+// Add budget_month column to existing databases and backfill it.
+// Max: month before billing_date (deferred billing). Bank: transaction month.
+function migrateBudgetMonth(db: Database.Database) {
+  const cols = db.prepare(`PRAGMA table_info(transactions)`).all() as Array<{ name: string }>
+  const hasColumn = cols.some(c => c.name === 'budget_month')
+  if (!hasColumn) {
+    db.exec(`ALTER TABLE transactions ADD COLUMN budget_month TEXT`)
+  }
+
+  // Backfill any rows missing budget_month
+  const missing = db.prepare(
+    `SELECT COUNT(*) c FROM transactions WHERE budget_month IS NULL`
+  ).get() as { c: number }
+  if (missing.c === 0) return
+
+  // Max rows: budget_month = month(billing_date) - 1, using SQLite date math
+  db.exec(`
+    UPDATE transactions
+    SET budget_month = strftime('%Y-%m', date(billing_date, '-1 month'))
+    WHERE budget_month IS NULL AND source = 'max' AND billing_date IS NOT NULL
+  `)
+  // Bank rows (and any without billing_date): budget_month = transaction month
+  db.exec(`
+    UPDATE transactions
+    SET budget_month = substr(transaction_date, 1, 7)
+    WHERE budget_month IS NULL
+  `)
 }
 
 function seedCategories(db: Database.Database) {

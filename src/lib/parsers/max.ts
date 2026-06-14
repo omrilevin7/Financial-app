@@ -1,9 +1,10 @@
 import * as XLSX from 'xlsx'
-import { normalizeBusinessName } from '../utils'
+import { normalizeBusinessName, billingToBudgetMonth } from '../utils'
 
 export interface ParsedTransaction {
   transaction_date: string
   billing_date: string
+  budget_month: string  // YYYY-MM the expense is counted in (billing month - 1)
   business_name: string
   business_name_normalized: string
   amount: number  // in agorot
@@ -61,11 +62,14 @@ function parseMaxSheet(sheet: XLSX.WorkSheet): ParsedTransaction[] {
 
     if (!businessName || !txDateRaw) continue
 
-    // Always use purchase date (תאריך עסקה) as transaction_date regardless of type.
-    // billing_date is stored separately for dedup and coverage tracking.
-    const isInstallment = kind === 'תשלומים'
+    // transaction_date keeps the real purchase date (תאריך עסקה) for display.
+    // budget_month drives all budgeting: Max billing is deferred, so a charge
+    // billed on the 2nd of a month covers the previous calendar month. This is
+    // applied uniformly to regular AND installment rows — each installment
+    // payment's own billing date lands it in its correct budget month.
     const purchaseDate = parseIsraeliDate(txDateRaw)
     const billingDate = billingDateRaw ? parseIsraeliDate(billingDateRaw) : purchaseDate
+    const budgetMonth = billingToBudgetMonth(billingDate)
 
     // Credit transactions (קרדיט) are refunds - use negative amount
     const isCredit = kind === 'קרדיט'
@@ -74,6 +78,7 @@ function parseMaxSheet(sheet: XLSX.WorkSheet): ParsedTransaction[] {
     results.push({
       transaction_date: purchaseDate,
       billing_date: billingDate,
+      budget_month: budgetMonth,
       business_name: businessName,
       business_name_normalized: normalizeBusinessName(businessName),
       amount: amountInAgorot,

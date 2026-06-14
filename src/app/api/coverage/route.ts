@@ -4,19 +4,19 @@ import { getDb } from '@/lib/db'
 export async function GET() {
   const db = getDb()
 
-  // Max: covered billing months
+  // Coverage is expressed in budget months (what each month's dashboard shows).
+  // Max budget_month already = billing month - 1.
   const maxMonths = new Set(
     (db.prepare(`
-      SELECT DISTINCT substr(billing_date, 1, 7) as m
-      FROM transactions WHERE source = 'max' AND billing_date IS NOT NULL
+      SELECT DISTINCT budget_month as m
+      FROM transactions WHERE source = 'max' AND budget_month IS NOT NULL
     `).all() as Array<{ m: string }>).map(r => r.m)
   )
 
-  // Bank: covered months
   const bankMonths = new Set(
     (db.prepare(`
-      SELECT DISTINCT substr(transaction_date, 1, 7) as m
-      FROM transactions WHERE source = 'bank'
+      SELECT DISTINCT budget_month as m
+      FROM transactions WHERE source = 'bank' AND budget_month IS NOT NULL
     `).all() as Array<{ m: string }>).map(r => r.m)
   )
 

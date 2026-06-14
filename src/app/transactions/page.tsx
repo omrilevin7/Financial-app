@@ -10,6 +10,8 @@ import { Suspense } from 'react'
 interface Transaction {
   id: number
   transaction_date: string
+  budget_month: string | null
+  billing_date: string | null
   business_name: string
   amount: number
   transaction_type: string
@@ -195,6 +197,12 @@ function TransactionsContent() {
           const isExcluded = tx.is_excluded === 1
           const isIncome = tx.transaction_type === 'income'
           const isRefund = tx.transaction_type === 'refund'
+          // Show when an item is counted in a different month than its purchase
+          // date (credit-card billing deferral, e.g. purchased Apr 29 → counts in May)
+          const purchaseMonth = tx.transaction_date.substring(0, 7)
+          const shiftedMonth = tx.budget_month && tx.budget_month !== purchaseMonth
+            ? new Date(tx.budget_month + '-01').toLocaleDateString('en-GB', { month: 'short' })
+            : null
 
           return (
             <div
@@ -202,7 +210,14 @@ function TransactionsContent() {
               className={`grid grid-cols-[90px_1fr_130px_90px_80px] px-4 py-2.5 border-b border-slate-800/50 items-center text-sm
                 ${isExcluded ? 'opacity-40' : 'hover:bg-slate-800/20'}`}
             >
-              <span className="text-slate-500 text-xs">{date}</span>
+              <div className="min-w-0">
+                <span className="text-slate-500 text-xs">{date}</span>
+                {shiftedMonth && (
+                  <span className="block text-[10px] text-indigo-400/70" title="Counted in this budget month due to credit-card billing">
+                    → {shiftedMonth}
+                  </span>
+                )}
+              </div>
 
               <div className="min-w-0">
                 <p className={`truncate text-xs ${isExcluded ? 'text-slate-500' : 'text-slate-200'}`}>

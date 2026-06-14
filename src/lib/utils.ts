@@ -27,6 +27,15 @@ export function getMonthFromDate(date: string): string {
   return date.substring(0, 7)  // YYYY-MM
 }
 
+// Max credit card billing is deferred: a statement billed on the 2nd of a month
+// covers the *previous* calendar month's spending. So the budget month is the
+// month before the billing date's month. Handles year rollover (Jan 2 -> prev Dec).
+export function billingToBudgetMonth(billingDate: string): string {
+  const [y, m] = billingDate.split('-').map(Number)
+  const d = new Date(y, m - 2, 1)  // m-1 = billing month index, m-2 = previous month
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export function daysInMonth(yyyymm: string): number {
   const [year, month] = yyyymm.split('-').map(Number)
   return new Date(year, month, 0).getDate()
